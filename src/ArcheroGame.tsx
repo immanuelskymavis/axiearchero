@@ -75,6 +75,8 @@ export default function ArcheroGame() {
   
   const canvasWidth = 640;
   const canvasHeight = 360;
+  const VISUAL_SCALE = 2;
+  const dprRef = useRef(1);
   /* base values kept for reset calculations */
   const BASE_PLAYER_SPEED = 2.6;
   const BASE_PROJECTILE_SPEED = 6;
@@ -83,6 +85,18 @@ export default function ArcheroGame() {
   const enemySpawnRate = 1200;
   const projectileLifetime = 2500;
   const dropChance = 0.35;
+
+  // Set up HiDPI canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    dprRef.current = dpr;
+    canvas.width = canvasWidth * dpr;
+    canvas.height = canvasHeight * dpr;
+    canvas.style.width = `${canvasWidth}px`;
+    canvas.style.height = `${canvasHeight}px`;
+  }, []);
 
   function project(x: number, y: number) {
     const topY = canvasHeight * 0.2;
@@ -486,6 +500,9 @@ export default function ArcheroGame() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    ctx.setTransform(dprRef.current, 0, 0, dprRef.current, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+
     /* ---------- build mottled ground pattern once ---------- */
     if (!groundPatternRef.current) {
       const pCan = document.createElement('canvas');
@@ -505,7 +522,7 @@ export default function ArcheroGame() {
       }
       groundPatternRef.current = ctx.createPattern(pCan, 'repeat');
     }
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    ctx.clearRect(0, 0, canvasWidth * dprRef.current, canvasHeight * dprRef.current);
     
     const topY = canvasHeight * 0.2;
     const bottomY = canvasHeight * 0.95;
@@ -582,7 +599,7 @@ export default function ArcheroGame() {
       const proj = project(drop.x, drop.y);
       const sx = proj.sx;
       const sy = proj.sy;
-      const potionR = drop.radius * proj.scale;
+      const potionR = drop.radius * proj.scale * VISUAL_SCALE;
       drawShadow(sx, sy, potionR);
       
       const bodyGrad = ctx.createRadialGradient(
@@ -622,21 +639,21 @@ export default function ArcheroGame() {
       const proj = project(enemy.x, enemy.y);
       const sx = proj.sx;
       const sy = proj.sy;
-      const size = enemy.radius * 2 * 1.6 * proj.scale;
-      drawShadow(sx, sy, enemy.radius * proj.scale);
+      const size = enemy.radius * 2 * 1.6 * proj.scale * VISUAL_SCALE;
+      drawShadow(sx, sy, enemy.radius * proj.scale * VISUAL_SCALE);
       
       if (enemyImg) {
         ctx.drawImage(enemyImg, sx - size / 2, sy - size / 2, size, size);
       } else {
         ctx.fillStyle = '#2ECC71';
         ctx.beginPath();
-        ctx.arc(sx, sy, enemy.radius * proj.scale, 0, Math.PI * 2);
+        ctx.arc(sx, sy, enemy.radius * proj.scale * VISUAL_SCALE, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#1E9250';
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        const eyeR = enemy.radius * 0.25 * proj.scale;
+        const eyeR = enemy.radius * 0.25 * proj.scale * VISUAL_SCALE;
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.arc(sx - eyeR * 1.5, sy - eyeR, eyeR, 0, Math.PI * 2);
@@ -653,7 +670,7 @@ export default function ArcheroGame() {
         ctx.strokeStyle = '#1E9250';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(sx, sy + eyeR * 1.5, enemy.radius * 0.4 * proj.scale, 0.1 * Math.PI, 0.9 * Math.PI);
+        ctx.arc(sx, sy + eyeR * 1.5, enemy.radius * 0.4 * proj.scale * VISUAL_SCALE, 0.1 * Math.PI, 0.9 * Math.PI);
         ctx.stroke();
       }
     }
@@ -663,7 +680,7 @@ export default function ArcheroGame() {
       const sx = proj.sx;
       const sy = proj.sy;
       const scale = proj.scale;
-      drawShadow(sx, sy, projectile.radius * scale * 1.2, scale);
+      drawShadow(sx, sy, projectile.radius * scale * 1.2 * VISUAL_SCALE, scale);
       
       ctx.fillStyle = '#5B3B1E';
       
@@ -675,9 +692,9 @@ export default function ArcheroGame() {
       ctx.scale(scale, scale);
       
       ctx.beginPath();
-      ctx.moveTo(projectile.radius * 2, 0);
-      ctx.lineTo(-projectile.radius, -projectile.radius);
-      ctx.lineTo(-projectile.radius, projectile.radius);
+      ctx.moveTo(projectile.radius * 2 * VISUAL_SCALE, 0);
+      ctx.lineTo(-projectile.radius * VISUAL_SCALE, -projectile.radius * VISUAL_SCALE);
+      ctx.lineTo(-projectile.radius * VISUAL_SCALE, projectile.radius * VISUAL_SCALE);
       ctx.closePath();
       ctx.fill();
       
@@ -688,8 +705,8 @@ export default function ArcheroGame() {
     const sx = pproj.sx;
     const sy = pproj.sy;
     const pScale = pproj.scale;
-    const pSize = player.radius * 2 * 1.6 * pScale;
-    const r = player.radius * pScale;
+    const pSize = player.radius * 2 * 1.6 * pScale * VISUAL_SCALE;
+    const r = player.radius * pScale * VISUAL_SCALE;
     drawShadow(sx, sy, r);
     
     if (playerImg) {
@@ -873,4 +890,3 @@ export default function ArcheroGame() {
     </div>
   );
 }
-

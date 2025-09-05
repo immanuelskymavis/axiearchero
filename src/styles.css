@@ -108,7 +108,7 @@ body {
 /* === Snake game styles === */
 .snake-game { display:flex; flex-direction:column; align-items:center; gap:0.75rem; margin-top:1rem; }
 .game-hud { display:flex; gap:1rem; font-weight:600; color: var(--gray-200); }
-.game-canvas { background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); image-rendering: pixelated; }
+.game-canvas { background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); }
 .game-controls { display:flex; gap:0.5rem; }
 .game-controls button { padding:0.5rem 1rem; background: var(--factory-orange); color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; box-shadow: 0 4px 6px rgba(242,123,47,0.25); transition: transform .15s ease, background .2s ease; }
 .game-controls button:hover { transform: translateY(-1px); background: var(--factory-orange-hover); }
