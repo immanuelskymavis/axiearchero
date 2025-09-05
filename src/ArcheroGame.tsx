@@ -53,8 +53,8 @@ export default function ArcheroGame() {
   const [nextMilestone, setNextMilestone] = useState(10);
   
   const [player, setPlayer] = useState<Player>({
-    x: 320,
-    y: 180,
+    x: 640,
+    y: 360,
     vx: 0,
     vy: 0,
     radius: 14,
@@ -71,20 +71,31 @@ export default function ArcheroGame() {
   const groundPatternRef = useRef<CanvasPattern | null>(null);
   
   const [lastEnemySpawn, setLastEnemySpawn] = useState(0);
+  /* dynamic enemy speed & ground colours */
+  const [enemySpeed, setEnemySpeed] = useState(1.3);
+  const [groundColors, setGroundColors] = useState({ top: '#7bd389', bottom: '#4caf50' });
   const [mousePos, setMousePos] = useState<Vector2D>({ x: 0, y: 0 });
   
-  const canvasWidth = 640;
-  const canvasHeight = 360;
+  const canvasWidth = 1280;
+  const canvasHeight = 720;
   const VISUAL_SCALE = 2;
   const dprRef = useRef(1);
   /* base values kept for reset calculations */
   const BASE_PLAYER_SPEED = 2.6;
   const BASE_PROJECTILE_SPEED = 6;
-  const enemySpeed = 1.3;
   const fireRate = 500;
   const enemySpawnRate = 1200;
   const projectileLifetime = 2500;
   const dropChance = 0.35;
+
+  /* helper to pick two harmonious ground colours */
+  const pickRandomGroundColors = () => {
+    const hue = Math.floor(Math.random() * 360);
+    return {
+      top: `hsl(${hue} 55% 65%)`,
+      bottom: `hsl(${hue} 55% 45%)`
+    };
+  };
 
   // Set up HiDPI canvas
   useEffect(() => {
@@ -229,6 +240,18 @@ export default function ArcheroGame() {
     setEnemies([]);
     setDrops([]);
     setLastEnemySpawn(0);
+    /* reset roguelike buffs & dynamics */
+    setStats({
+      playerSpeed: 2.6,
+      projectileSpeed: 6,
+      arrowCount: 1,
+      pierce: false,
+      ricochet: false
+    });
+    setNextMilestone(10);
+    setPerkOpen(false);
+    setEnemySpeed(1.3);
+    setGroundColors({ top: '#7bd389', bottom: '#4caf50' });
   };
   
   const toggleRunning = () => {
@@ -476,6 +499,9 @@ export default function ArcheroGame() {
         setPerkChoices(picks);
         setPerkOpen(true);
         setRunning(false);
+        /* change floor colour & speed up enemies */
+        setGroundColors(pickRandomGroundColors());
+        setEnemySpeed(prev => prev * 1.1);
         setNextMilestone(nextMilestone + 10);
       }
       
@@ -531,8 +557,8 @@ export default function ArcheroGame() {
     const cx = canvasWidth / 2;
 
     const groundGrad = ctx.createLinearGradient(0, topY, 0, bottomY);
-    groundGrad.addColorStop(0, '#7bd389');
-    groundGrad.addColorStop(1, '#4caf50');
+    groundGrad.addColorStop(0, groundColors.top);
+    groundGrad.addColorStop(1, groundColors.bottom);
     ctx.fillStyle = groundGrad;
 
     ctx.beginPath();
@@ -816,6 +842,15 @@ export default function ArcheroGame() {
           {gameOver ? 'Game Over!' : running ? 'Playing' : 'Paused'}
         </div>
       </div>
+      {/* Game title */}
+      <h1
+        style={{
+          fontFamily: '"Comic Sans MS", "Comic Sans", cursive',
+          margin: '8px 0 12px'
+        }}
+      >
+        Archaxieo
+      </h1>
       
       <div style={{ position: 'relative' }}>
         <canvas
