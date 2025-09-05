@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 
+// Vite replaces these imports with the correct hashed URLs, so they work
+// on GitHub Pages where the app is served from /axiearchero/ sub-path.
+import playerSpriteUrl from '../assets/buba.png';
+import enemySpriteUrl from '../assets/puffy.png';
+
 type Vector2D = {
   x: number;
   y: number;
@@ -91,11 +96,11 @@ export default function ArcheroGame() {
 
   useEffect(() => {
     const pImg = new Image();
-    pImg.src = '/assets/buba.png';
+    pImg.src = playerSpriteUrl;
     pImg.onload = () => setPlayerImg(pImg);
     
     const eImg = new Image();
-    eImg.src = '/assets/puffy.png';
+    eImg.src = enemySpriteUrl;
     eImg.onload = () => setEnemyImg(eImg);
   }, []);
 
@@ -106,12 +111,12 @@ export default function ArcheroGame() {
     const id = window.setTimeout(() => {
       if (!playerImg) {
         const img = new Image();
-        img.src = `/assets/buba.png?t=${Date.now()}`;
+        img.src = playerSpriteUrl;
         img.onload = () => setPlayerImg(img);
       }
       if (!enemyImg) {
         const img = new Image();
-        img.src = `/assets/puffy.png?t=${Date.now()}`;
+        img.src = enemySpriteUrl;
         img.onload = () => setEnemyImg(img);
       }
     }, 800);
