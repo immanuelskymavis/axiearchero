@@ -49,63 +49,6 @@ body {
 }
 
 /* Poké Ball inspired animated background */
-.container::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  /* Layered gradients:
-     1) radial for center button (white + black ring)
-     2) central horizontal black band
-     3) top red half
-     4) bottom white half
-     5) diagonal translucent highlight that will flow */
-  background:
-    radial-gradient(circle at center,
-      rgba(255, 255, 255, 0.95) 0 12%,
-      rgba(0, 0, 0, 1) 12% 16%,
-      rgba(255, 255, 255, 0) 16%),
-    linear-gradient(#000 0 0),
-    linear-gradient(#e3350d 0 0),
-    linear-gradient(#ffffff 0 0),
-    linear-gradient(
-      120deg,
-      rgba(255, 255, 255, 0.06) 0%,
-      rgba(255, 255, 255, 0) 40%,
-      rgba(255, 255, 255, 0.06) 60%,
-      rgba(255, 255, 255, 0) 100%);
-  background-repeat: no-repeat;
-  background-position:
-    center,
-    center,
-    top,
-    bottom,
-    0% 0%;
-  background-size:
-    40% 40%,
-    100% 14%,
-    100% 50%,
-    100% 50%,
-    200% 200%;
-  opacity: 0.2;
-  animation: pokePulse 12s ease-in-out infinite,
-             pokeFlow 20s linear infinite;
-}
-
-@keyframes pokePulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.18;
-    filter: blur(0);
-  }
-  50% {
-    transform: scale(1.03);
-    opacity: 0.24;
-    filter: blur(1px);
-  }
-}
-
 /* === Snake game styles === */
 .snake-game { display:flex; flex-direction:column; align-items:center; gap:0.75rem; margin-top:1rem; }
 .game-hud { display:flex; gap:1rem; font-weight:600; color: var(--gray-200); }
@@ -117,19 +60,6 @@ body {
 
 /* Axie-themed accent for score */
 .game-hud .score { color:#FF9A3C; }
-
-@keyframes pokeFlow {
-  0%   { background-position: center, center, top, bottom, 0% 0%; }
-  100% { background-position: center, center, top, bottom, 100% 100%; }
-}
-
-/* Respect user motion preferences */
-@media (prefers-reduced-motion: reduce) {
-  .container::before {
-    animation: none;
-    opacity: 0.18;
-  }
-}
 
 h1 {
   font-size: 2.5rem;

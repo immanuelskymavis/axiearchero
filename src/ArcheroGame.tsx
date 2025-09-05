@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 // on GitHub Pages where the app is served from /axiearchero/ sub-path.
 import playerSpriteUrl from '../assets/buba.png';
 import enemySpriteUrl from '../assets/puffy.png';
+import slpUrl from '../assets/SLP.png';
+import coolGifUrl from '../assets/cool.gif';
 
 type Vector2D = {
   x: number;
@@ -37,6 +39,7 @@ export default function ArcheroGame() {
   const [gameOver, setGameOver] = useState(false);
   const [score, setScore] = useState(0);
   const [kills, setKills] = useState(0);
+  const [slpCount, setSlpCount] = useState(0);
 
   /* roguelike stats & perk ui */
   const [stats, setStats] = useState({
@@ -68,6 +71,7 @@ export default function ArcheroGame() {
   const [drops, setDrops] = useState<Drop[]>([]);
   const [playerImg, setPlayerImg] = useState<HTMLImageElement | null>(null);
   const [enemyImg, setEnemyImg] = useState<HTMLImageElement | null>(null);
+  const [slpImg, setSlpImg] = useState<HTMLImageElement | null>(null);
   const groundPatternRef = useRef<CanvasPattern | null>(null);
   
   const [lastEnemySpawn, setLastEnemySpawn] = useState(0);
@@ -86,7 +90,7 @@ export default function ArcheroGame() {
   const fireRate = 500;
   const enemySpawnRate = 1200;
   const projectileLifetime = 2500;
-  const dropChance = 0.35;
+  const dropChance = 0.25;
 
   /* helper to pick two harmonious ground colours */
   const pickRandomGroundColors = () => {
@@ -127,11 +131,15 @@ export default function ArcheroGame() {
     const eImg = new Image();
     eImg.src = enemySpriteUrl;
     eImg.onload = () => setEnemyImg(eImg);
+    
+    const sImg = new Image();
+    sImg.src = slpUrl;
+    sImg.onload = () => setSlpImg(sImg);
   }, []);
 
   /* retry sprite load if the files were added after initial mount */
   useEffect(() => {
-    if (playerImg && enemyImg) return; // nothing to do
+    if (playerImg && enemyImg && slpImg) return; // nothing to do
 
     const id = window.setTimeout(() => {
       if (!playerImg) {
@@ -144,10 +152,15 @@ export default function ArcheroGame() {
         img.src = enemySpriteUrl;
         img.onload = () => setEnemyImg(img);
       }
+      if (!slpImg) {
+        const img = new Image();
+        img.src = slpUrl;
+        img.onload = () => setSlpImg(img);
+      }
     }, 800);
 
     return () => clearTimeout(id);
-  }, [playerImg, enemyImg]);
+  }, [playerImg, enemyImg, slpImg]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -226,6 +239,7 @@ export default function ArcheroGame() {
     setGameOver(false);
     setScore(0);
     setKills(0);
+    setSlpCount(0);
     setPlayer({
       x: canvasWidth / 2,
       y: canvasHeight / 2,
@@ -255,9 +269,12 @@ export default function ArcheroGame() {
   };
   
   const toggleRunning = () => {
-    if (!gameOver) {
-      setRunning(!running);
+    if (gameOver) {
+      resetGame();
+      setRunning(true);
+      return;
     }
+    setRunning(!running);
   };
   
   /* ---------- perk application ---------- */
@@ -461,6 +478,7 @@ export default function ArcheroGame() {
       }
       
       let newScore = score;
+      let newSlp = slpCount;
       const remainingDrops = [];
       
       for (const drop of newDrops) {
@@ -469,7 +487,7 @@ export default function ArcheroGame() {
         const distance = Math.sqrt(dx * dx + dy * dy);
         
         if (distance < player.radius + drop.radius) {
-          newScore++;
+          newSlp++;
         } else {
           remainingDrops.push(drop);
         }
@@ -478,6 +496,7 @@ export default function ArcheroGame() {
       if (newGameOver !== gameOver) setGameOver(newGameOver);
       if (newKills !== kills) setKills(newKills);
       if (newScore !== score) setScore(newScore);
+      if (newSlp !== slpCount) setSlpCount(newSlp);
       if (newDrops.length !== remainingDrops.length) setDrops(remainingDrops);
       if (newEnemies.length !== enemies.length) setEnemies(newEnemies);
       if (newProjectiles.length !== projectiles.length) setProjectiles(newProjectiles);
@@ -517,7 +536,7 @@ export default function ArcheroGame() {
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [running, gameOver, player, projectiles, enemies, drops, lastEnemySpawn, score, kills]);
+  }, [running, gameOver, player, projectiles, enemies, drops, lastEnemySpawn, score, kills, slpCount]);
   
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -625,40 +644,28 @@ export default function ArcheroGame() {
       const proj = project(drop.x, drop.y);
       const sx = proj.sx;
       const sy = proj.sy;
-      const potionR = drop.radius * proj.scale * VISUAL_SCALE;
-      drawShadow(sx, sy, potionR);
+      const size = drop.radius * 2 * proj.scale * VISUAL_SCALE;
+      drawShadow(sx, sy, size * 0.45);
       
-      const bodyGrad = ctx.createRadialGradient(
-        sx, sy, potionR * 0.2,
-        sx, sy, potionR
-      );
-      bodyGrad.addColorStop(0, '#FF94E7');
-      bodyGrad.addColorStop(1, '#FF4FCC');
-      
-      ctx.fillStyle = bodyGrad;
-      ctx.beginPath();
-      ctx.arc(sx, sy, potionR, 0, Math.PI * 2);
-      ctx.fill();
-      
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      
-      const neckH = potionR * 0.35;
-      const neckW = potionR * 0.7;
-      ctx.fillStyle = 'rgba(255,255,255,0.3)';
-      ctx.fillRect(sx - neckW / 2, sy - potionR - neckH, neckW, neckH);
-      
-      const corkH = potionR * 0.3;
-      const corkW = potionR * 0.65;
-      ctx.fillStyle = '#B07D4F';
-      ctx.fillRect(sx - corkW / 2, sy - potionR - neckH - corkH, corkW, corkH);
-      
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(sx - potionR * 0.4, sy - potionR * 0.4, potionR * 0.6, 1.3, 1.8);
-      ctx.stroke();
+      if (slpImg) {
+        ctx.drawImage(slpImg, sx - size/2, sy - size/2, size, size);
+      } else {
+        const bodyGrad = ctx.createRadialGradient(
+          sx, sy, size * 0.1,
+          sx, sy, size * 0.5
+        );
+        bodyGrad.addColorStop(0, '#FF94E7');
+        bodyGrad.addColorStop(1, '#FF4FCC');
+        
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath();
+        ctx.arc(sx, sy, size * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
     }
     
     for (const enemy of enemies) {
@@ -819,6 +826,7 @@ export default function ArcheroGame() {
     ctx.textAlign = 'left';
     ctx.fillText(`Score: ${score}`, 20, 30);
     ctx.fillText(`Kills: ${kills}`, 20, 55);
+    ctx.fillText(`SLP: ${slpCount}`, 20, 80);
     
     if (gameOver) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -829,10 +837,10 @@ export default function ArcheroGame() {
       ctx.textAlign = 'center';
       ctx.fillText('Game Over', canvasWidth / 2, canvasHeight / 2 - 20);
       ctx.font = '20px Arial';
-      ctx.fillText(`Final Score: ${score} | Kills: ${kills}`, canvasWidth / 2, canvasHeight / 2 + 20);
+      ctx.fillText(`Final Score: ${score} | Kills: ${kills} | SLP: ${slpCount}`, canvasWidth / 2, canvasHeight / 2 + 20);
     }
     
-  }, [player, projectiles, enemies, drops, score, kills, gameOver, playerImg, enemyImg]);
+  }, [player, projectiles, enemies, drops, score, kills, slpCount, gameOver, playerImg, enemyImg, slpImg]);
   
   return (
     <div className="snake-game">
@@ -851,6 +859,11 @@ export default function ArcheroGame() {
       >
         Archaxieo
       </h1>
+      
+      <div style={{ marginBottom: 8, lineHeight: 1.2 }}>
+        <div>Kills: {kills}</div>
+        <div>SLP: {slpCount}</div>
+      </div>
       
       <div style={{ position: 'relative' }}>
         <canvas
@@ -914,10 +927,34 @@ export default function ArcheroGame() {
             </div>
           </div>
         )}
+        
+        {gameOver && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <img 
+              src={coolGifUrl} 
+              alt="Cool animation" 
+              style={{
+                maxWidth: '80%',
+                maxHeight: '80%',
+                borderRadius: 12,
+                boxShadow: '0 10px 30px rgba(0,0,0,0.6)'
+              }}
+            />
+          </div>
+        )}
       </div>
       
       <div className="game-controls">
-        <button onClick={toggleRunning} disabled={gameOver}>
+        <button onClick={toggleRunning} disabled={false}>
           {running ? 'Pause' : 'Start'}
         </button>
         <button onClick={resetGame}>Reset</button>
