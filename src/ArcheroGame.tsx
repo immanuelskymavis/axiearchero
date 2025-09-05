@@ -84,6 +84,7 @@ export default function ArcheroGame() {
   const canvasHeight = 720;
   const VISUAL_SCALE = 2;
   const dprRef = useRef(1);
+  const MAX_ENEMIES = 35; /* --- perf: cap total enemies on screen --- */
   /* base values kept for reset calculations */
   const BASE_PLAYER_SPEED = 2.6;
   const BASE_PROJECTILE_SPEED = 6;
@@ -105,7 +106,8 @@ export default function ArcheroGame() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
+    /* perf: clamp DPR so 4-5K monitors don’t explode the GPU */
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
     dprRef.current = dpr;
     canvas.width = canvasWidth * dpr;
     canvas.height = canvasHeight * dpr;
@@ -297,6 +299,12 @@ export default function ArcheroGame() {
   };
   
   const spawnEnemy = (time: number) => {
+    /* respect cap to avoid exponential work */
+    if (enemies.length >= MAX_ENEMIES) {
+      setLastEnemySpawn(time);
+      return;
+    }
+
     const side = Math.floor(Math.random() * 4);
     let x, y;
     
@@ -631,8 +639,8 @@ export default function ArcheroGame() {
     const drawShadow = (sx: number, sy: number, rx: number, scale = 1) => {
       const ry = rx * 0.45;
       ctx.save();
-      ctx.filter = 'blur(2px)';
-      ctx.globalAlpha = 0.28;
+      /* perf: remove blur filter (very slow), rely on alpha for softness */
+      ctx.globalAlpha = 0.22;
       ctx.fillStyle = '#000';
       ctx.beginPath();
       ctx.ellipse(sx, sy + ry * 0.6, rx, ry, 0, 0, Math.PI * 2);
