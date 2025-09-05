@@ -32,6 +32,7 @@ type Projectile = Entity & {
 
 type Enemy = Entity;
 type Drop = Vector2D & { radius: number };
+type Obstacle = Vector2D & { radius: number };
 
 export default function ArcheroGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -40,6 +41,7 @@ export default function ArcheroGame() {
   const [score, setScore] = useState(0);
   const [kills, setKills] = useState(0);
   const [slpCount, setSlpCount] = useState(0);
+  const [obstacles, setObstacles] = useState<Obstacle[]>([]);
 
   /* Load SLP from localStorage on mount */
   useEffect(() => {
@@ -57,7 +59,7 @@ export default function ArcheroGame() {
 
   /* roguelike stats & perk ui */
   const [stats, setStats] = useState({
-    playerSpeed: 2.6,
+    playerSpeed: 3.12, // Increased by 20% from 2.6
     projectileSpeed: 6,
     arrowCount: 1,
     pierce: false,
@@ -100,7 +102,7 @@ export default function ArcheroGame() {
   const dprRef = useRef(1);
   const MAX_ENEMIES = 35; /* --- perf: cap total enemies on screen --- */
   /* base values kept for reset calculations */
-  const BASE_PLAYER_SPEED = 2.6;
+  const BASE_PLAYER_SPEED = 3.12; // Increased by 20% from 2.6
   const BASE_PROJECTILE_SPEED = 6;
   const fireRate = 500;
   const enemySpawnRate = 1200;
@@ -177,6 +179,19 @@ export default function ArcheroGame() {
 
     return () => clearTimeout(id);
   }, [playerImg, enemyImg, slpImg]);
+
+  // Check collision with obstacles
+  const checkObstacleCollision = (x: number, y: number, radius: number) => {
+    for (const obstacle of obstacles) {
+      const dx = x - obstacle.x;
+      const dy = y - obstacle.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance < radius + obstacle.radius) {
+        return true; // Collision detected
+      }
+    }
+    return false;
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -269,10 +284,11 @@ export default function ArcheroGame() {
     setProjectiles([]);
     setEnemies([]);
     setDrops([]);
+    setObstacles([]);
     setLastEnemySpawn(0);
     /* reset roguelike buffs & dynamics */
     setStats({
-      playerSpeed: 2.6,
+      playerSpeed: BASE_PLAYER_SPEED,
       projectileSpeed: 6,
       arrowCount: 1,
       pierce: false,
@@ -299,7 +315,7 @@ export default function ArcheroGame() {
       if (id === 'arrow_speed')
         return { ...prev, projectileSpeed: prev.projectileSpeed * 1.1 };
       if (id === 'player_speed')
-        return { ...prev, playerSpeed: prev.playerSpeed * 1.1 };
+        return { ...prev, playerSpeed: prev.playerSpeed * 1.25 }; // Increased from 1.1 to 1.25
       if (id === 'arrow_count')
         return { ...prev, arrowCount: prev.arrowCount + 1 };
       if (id === 'pierce')
@@ -383,6 +399,57 @@ export default function ArcheroGame() {
     }));
   };
   
+  // Spawn obstacles at milestone
+  const spawnObstacles = () => {
+    const toAdd = 1 + Math.floor(Math.random() * 2); // 1-2 obstacles
+    const newObstacles: Obstacle[] = [];
+    
+    for (let i = 0; i < toAdd; i++) {
+      let validPosition = false;
+      let attempts = 0;
+      let x = 0, y = 0;
+      
+      // Try to find a valid position
+      while (!validPosition && attempts < 20) {
+        x = 50 + Math.random() * (canvasWidth - 100);
+        y = 50 + Math.random() * (canvasHeight - 100);
+        
+        // Check distance from player
+        const dx = player.x - x;
+        const dy = player.y - y;
+        const playerDist = Math.sqrt(dx * dx + dy * dy);
+        
+        // Check overlap with existing obstacles
+        let overlapsObstacle = false;
+        for (const obstacle of [...obstacles, ...newObstacles]) {
+          const ox = obstacle.x - x;
+          const oy = obstacle.y - y;
+          const dist = Math.sqrt(ox * ox + oy * oy);
+          if (dist < player.radius + obstacle.radius + 6) {
+            overlapsObstacle = true;
+            break;
+          }
+        }
+        
+        if (playerDist > 120 && !overlapsObstacle) {
+          validPosition = true;
+        }
+        
+        attempts++;
+      }
+      
+      if (validPosition) {
+        newObstacles.push({
+          x,
+          y,
+          radius: player.radius
+        });
+      }
+    }
+    
+    setObstacles(prev => [...prev, ...newObstacles]);
+  };
+  
   useEffect(() => {
     if (!running || gameOver) return;
     
@@ -403,13 +470,27 @@ export default function ArcheroGame() {
       }
       
       setPlayer(prev => {
-        const newX = prev.x + prev.vx;
-        const newY = prev.y + prev.vy;
+        let newX = prev.x + prev.vx;
+        let newY = prev.y + prev.vy;
+        
+        // Check X-axis movement for obstacle collisions
+        if (checkObstacleCollision(newX, prev.y, prev.radius)) {
+          newX = prev.x; // Cancel X movement
+        }
+        
+        // Check Y-axis movement for obstacle collisions
+        if (checkObstacleCollision(prev.x, newY, prev.radius)) {
+          newY = prev.y; // Cancel Y movement
+        }
+        
+        // Boundary checks
+        newX = Math.max(prev.radius, Math.min(canvasWidth - prev.radius, newX));
+        newY = Math.max(prev.radius, Math.min(canvasHeight - prev.radius, newY));
         
         return {
           ...prev,
-          x: Math.max(prev.radius, Math.min(canvasWidth - prev.radius, newX)),
-          y: Math.max(prev.radius, Math.min(canvasHeight - prev.radius, newY))
+          x: newX,
+          y: newY
         };
       });
       
@@ -445,10 +526,23 @@ export default function ArcheroGame() {
             vy = (dy / distance) * enemySpeed;
           }
           
+          let newX = enemy.x + vx;
+          let newY = enemy.y + vy;
+          
+          // Check X-axis movement for obstacle collisions
+          if (checkObstacleCollision(newX, enemy.y, enemy.radius)) {
+            newX = enemy.x; // Cancel X movement
+          }
+          
+          // Check Y-axis movement for obstacle collisions
+          if (checkObstacleCollision(enemy.x, newY, enemy.radius)) {
+            newY = enemy.y; // Cancel Y movement
+          }
+          
           return {
             ...enemy,
-            x: enemy.x + vx,
-            y: enemy.y + vy,
+            x: newX,
+            y: newY,
             vx,
             vy
           };
@@ -537,7 +631,7 @@ export default function ArcheroGame() {
       if (newKills >= nextMilestone && !perkOpen) {
         const pool = [
           { id: 'arrow_speed', label: 'Increase arrow speed by 10%' },
-          { id: 'player_speed', label: 'Increase player movement speed by 10%' },
+          { id: 'player_speed', label: 'Increase player movement speed by 25%' }, // Updated from 10% to 25%
           { id: 'arrow_count', label: 'Increase amount of arrows +1' },
           { id: 'pierce', label: 'Allow arrows to pierce first enemy' },
           { id: 'ricochet', label: 'Allow arrows to ricochet off borders' }
@@ -554,6 +648,9 @@ export default function ArcheroGame() {
         setGroundColors(pickRandomGroundColors());
         setEnemySpeed(prev => prev * 1.1);
         setNextMilestone(nextMilestone + 10);
+        
+        // Spawn obstacles at milestone
+        spawnObstacles();
       }
       
       if (!newGameOver) {
@@ -568,7 +665,7 @@ export default function ArcheroGame() {
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [running, gameOver, player, projectiles, enemies, drops, lastEnemySpawn, score, kills, slpCount]);
+  }, [running, gameOver, player, projectiles, enemies, drops, lastEnemySpawn, score, kills, slpCount, obstacles]);
   
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -671,6 +768,31 @@ export default function ArcheroGame() {
       ctx.fill();
       ctx.restore();
     };
+    
+    // Draw obstacles
+    for (const obstacle of obstacles) {
+      const proj = project(obstacle.x, obstacle.y);
+      const sx = proj.sx;
+      const sy = proj.sy;
+      const size = obstacle.radius * 2 * proj.scale * VISUAL_SCALE;
+      drawShadow(sx, sy, size * 0.45);
+      
+      // Draw rock-like obstacle
+      ctx.fillStyle = '#888';
+      ctx.beginPath();
+      ctx.arc(sx, sy, size * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      // Add some texture to the rock
+      ctx.fillStyle = '#777';
+      ctx.beginPath();
+      ctx.arc(sx - size * 0.15, sy - size * 0.1, size * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
     
     for (const drop of drops) {
       const proj = project(drop.x, drop.y);
@@ -775,6 +897,14 @@ export default function ArcheroGame() {
     const r = player.radius * pScale * VISUAL_SCALE;
     drawShadow(sx, sy, r);
     
+    // Draw aim line from player to mouse
+    ctx.strokeStyle = 'rgba(180,180,180,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(mousePos.x, mousePos.y);
+    ctx.stroke();
+    
     if (playerImg) {
       ctx.drawImage(playerImg, sx - pSize / 2, sy - pSize / 2, pSize, pSize);
     } else {
@@ -873,7 +1003,7 @@ export default function ArcheroGame() {
       ctx.fillText(`Final Score: ${score} | Kills: ${kills} | SLP: ${slpCount}`, canvasWidth / 2, canvasHeight / 2 + 20);
     }
     
-  }, [player, projectiles, enemies, drops, score, kills, slpCount, gameOver, playerImg, enemyImg, slpImg]);
+  }, [player, projectiles, enemies, drops, score, kills, slpCount, gameOver, playerImg, enemyImg, slpImg, obstacles, mousePos]);
   
   return (
     <div className="snake-game">
