@@ -1,0 +1,224 @@
+:root {
+  /* Authentic Factory orange palette (derived from factory-mono design system) */
+  --factory-orange: #f27b2f;        /* --mica-4 */
+  --factory-orange-light: #f0a330;  /* --mica-6 */
+  --factory-orange-dark: #d56a26;   /* --mica-3 */
+  --factory-orange-hover: #e3992a;  /* --mica-5 */
+  /* Darker, pure-black background for a crisper look */
+  --background: #000000;
+  --foreground: #F9FAFB;
+  --gray-100: #F3F4F6;
+  --gray-200: #E5E7EB;
+  --gray-800: #1F2937;
+  --gray-900: #111827;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  line-height: 1.6;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* allow pseudo-element background to sit behind content */
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+/* ensure actual content stays above the animated background */
+.container > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Poké Ball inspired animated background */
+.container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* Layered gradients:
+     1) radial for center button (white + black ring)
+     2) central horizontal black band
+     3) top red half
+     4) bottom white half
+     5) diagonal translucent highlight that will flow */
+  background:
+    radial-gradient(circle at center,
+      rgba(255, 255, 255, 0.95) 0 12%,
+      rgba(0, 0, 0, 1) 12% 16%,
+      rgba(255, 255, 255, 0) 16%),
+    linear-gradient(#000 0 0),
+    linear-gradient(#e3350d 0 0),
+    linear-gradient(#ffffff 0 0),
+    linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0) 40%,
+      rgba(255, 255, 255, 0.06) 60%,
+      rgba(255, 255, 255, 0) 100%);
+  background-repeat: no-repeat;
+  background-position:
+    center,
+    center,
+    top,
+    bottom,
+    0% 0%;
+  background-size:
+    40% 40%,
+    100% 14%,
+    100% 50%,
+    100% 50%,
+    200% 200%;
+  opacity: 0.2;
+  animation: pokePulse 12s ease-in-out infinite,
+             pokeFlow 20s linear infinite;
+}
+
+@keyframes pokePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.18;
+    filter: blur(0);
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 0.24;
+    filter: blur(1px);
+  }
+}
+
+/* === Snake game styles === */
+.snake-game { display:flex; flex-direction:column; align-items:center; gap:0.75rem; margin-top:1rem; }
+.game-hud { display:flex; gap:1rem; font-weight:600; color: var(--gray-200); }
+.game-canvas { background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); image-rendering: pixelated; }
+.game-controls { display:flex; gap:0.5rem; }
+.game-controls button { padding:0.5rem 1rem; background: var(--factory-orange); color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; box-shadow: 0 4px 6px rgba(242,123,47,0.25); transition: transform .15s ease, background .2s ease; }
+.game-controls button:hover { transform: translateY(-1px); background: var(--factory-orange-hover); }
+.game-controls button:disabled { opacity:0.6; cursor:not-allowed; }
+
+/* Axie-themed accent for score */
+.game-hud .score { color:#FF9A3C; }
+
+@keyframes pokeFlow {
+  0%   { background-position: center, center, top, bottom, 0% 0%; }
+  100% { background-position: center, center, top, bottom, 100% 100%; }
+}
+
+/* Respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .container::before {
+    animation: none;
+    opacity: 0.18;
+  }
+}
+
+h1 {
+  font-size: 2.5rem;
+  margin: 1.5rem 0;
+  background: linear-gradient(90deg, var(--factory-orange-light), var(--factory-orange));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hello-world-box {
+  margin: 1.5rem 0;
+  padding: 0.75rem 1.5rem;
+  background-color: var(--gray-800);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: var(--gray-200);
+  border-left: 4px solid var(--factory-orange);
+}
+
+.cta {
+  display: inline-block;
+  margin-top: 2rem;
+  padding: 0.75rem 1.5rem;
+  background-color: var(--factory-orange);
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px rgba(242, 123, 47, 0.25);
+}
+
+.cta:hover {
+  background-color: var(--factory-orange-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 8px rgba(242, 123, 47, 0.3);
+}
+
+.cta:active {
+  transform: translateY(0);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* === Wordmark styling === */
+.wordmark {
+  /* Give breathing room below the logo */
+  margin: 1.25rem 0 0.5rem;
+  /* Fixed base width but stay responsive on small viewports */
+  width: 320px;
+  max-width: 80%;
+  height: auto;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+  
+  h1 {
+    font-size: 2rem;
+  }
+
+  .wordmark {
+    width: 260px;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 1.75rem;
+  }
+  
+  .hello-world-box {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+  
+  .cta {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+  }
+
+  .wordmark {
+    width: 200px;
+  }
+}

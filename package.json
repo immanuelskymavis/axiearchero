@@ -1,0 +1,36 @@
+{
+  "name": "factory-react-demo",
+  "version": "0.1.0",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "electron": "electron .",
+    "start": "concurrently \"npm run dev\" \"wait-on tcp:5174 && npm run electron\"",
+    "test": "vitest run",
+    "lint": "eslint src --ext ts,tsx",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6",
+    "@testing-library/react": "^14",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@typescript-eslint/eslint-plugin": "^8.35.1",
+    "@typescript-eslint/parser": "^8.35.1",
+    "@vitejs/plugin-react": "^4",
+    "concurrently": "^8",
+    "electron": "^28.3.3",
+    "eslint": "^8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "jsdom": "^22",
+    "typescript": "^5",
+    "vite": "^5",
+    "vitest": "^1",
+    "wait-on": "^7"
+  }
+}
