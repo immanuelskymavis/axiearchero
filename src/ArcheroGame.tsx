@@ -30,9 +30,12 @@ type Projectile = Entity & {
   canRicochet: boolean;
 };
 
-type Enemy = Entity;
+type Enemy = Entity & {
+  spawnInvulUntil: number;
+};
+
 type Drop = Vector2D & { radius: number };
-type Obstacle = Vector2D & { radius: number };
+type Obstacle = { x: number; y: number; width: number; height: number }; // center-based, axis-aligned
 
 export default function ArcheroGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -42,6 +45,7 @@ export default function ArcheroGame() {
   const [kills, setKills] = useState(0);
   const [slpCount, setSlpCount] = useState(0);
   const [obstacles, setObstacles] = useState<Obstacle[]>([]);
+  const nowRef = useRef(0);
 
   /* Load SLP from localStorage on mount */
   useEffect(() => {
@@ -89,6 +93,7 @@ export default function ArcheroGame() {
   const [enemyImg, setEnemyImg] = useState<HTMLImageElement | null>(null);
   const [slpImg, setSlpImg] = useState<HTMLImageElement | null>(null);
   const groundPatternRef = useRef<CanvasPattern | null>(null);
+  const stonePatternRef = useRef<CanvasPattern | null>(null);
   
   const [lastEnemySpawn, setLastEnemySpawn] = useState(0);
   /* dynamic enemy speed & ground colours */
@@ -108,6 +113,7 @@ export default function ArcheroGame() {
   const enemySpawnRate = 1200;
   const projectileLifetime = 2500;
   const dropChance = 0.25;
+  const WALL_THICKNESS = 24;
 
   /* helper to pick two harmonious ground colours */
   const pickRandomGroundColors = () => {
@@ -180,13 +186,48 @@ export default function ArcheroGame() {
     return () => clearTimeout(id);
   }, [playerImg, enemyImg, slpImg]);
 
+  // Collision helpers
+  const circleRectCollides = (cx: number, cy: number, cr: number, ob: Obstacle): boolean => {
+    // Calculate rectangle edges
+    const left = ob.x - ob.width / 2;
+    const right = ob.x + ob.width / 2;
+    const top = ob.y - ob.height / 2;
+    const bottom = ob.y + ob.height / 2;
+    
+    // Find closest point to circle center
+    const closestX = Math.max(left, Math.min(cx, right));
+    const closestY = Math.max(top, Math.min(cy, bottom));
+    
+    // Calculate distance from closest point to circle center
+    const dx = cx - closestX;
+    const dy = cy - closestY;
+    
+    return dx * dx + dy * dy < cr * cr;
+  };
+  
+  const circleRectCollisionAxis = (cx: number, cy: number, cr: number, ob: Obstacle): 'x' | 'y' => {
+    // Calculate rectangle edges
+    const left = ob.x - ob.width / 2;
+    const right = ob.x + ob.width / 2;
+    const top = ob.y - ob.height / 2;
+    const bottom = ob.y + ob.height / 2;
+    
+    // Find closest point to circle center
+    const closestX = Math.max(left, Math.min(cx, right));
+    const closestY = Math.max(top, Math.min(cy, bottom));
+    
+    // Calculate distance components
+    const dx = Math.abs(cx - closestX);
+    const dy = Math.abs(cy - closestY);
+    
+    // Return axis with greater penetration
+    return dx > dy ? 'x' : 'y';
+  };
+  
   // Check collision with obstacles
   const checkObstacleCollision = (x: number, y: number, radius: number) => {
     for (const obstacle of obstacles) {
-      const dx = x - obstacle.x;
-      const dy = y - obstacle.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance < radius + obstacle.radius) {
+      if (circleRectCollides(x, y, radius, obstacle)) {
         return true; // Collision detected
       }
     }
@@ -335,29 +376,41 @@ export default function ArcheroGame() {
       return;
     }
 
-    const side = Math.floor(Math.random() * 4);
+    // Spawn within the arena
     let x, y;
+    let validPosition = false;
+    let attempts = 0;
     
-    switch (side) {
-      case 0:
-        x = Math.random() * canvasWidth;
-        y = -20;
-        break;
-      case 1:
-        x = canvasWidth + 20;
-        y = Math.random() * canvasHeight;
-        break;
-      case 2:
-        x = Math.random() * canvasWidth;
-        y = canvasHeight + 20;
-        break;
-      case 3:
-        x = -20;
-        y = Math.random() * canvasHeight;
-        break;
-      default:
-        x = 0;
-        y = 0;
+    while (!validPosition && attempts < 20) {
+      // Spawn within playable area, away from walls
+      x = WALL_THICKNESS + 40 + Math.random() * (canvasWidth - 2 * (WALL_THICKNESS + 40));
+      y = WALL_THICKNESS + 40 + Math.random() * (canvasHeight - 2 * (WALL_THICKNESS + 40));
+      
+      // Check distance from player
+      const dx = player.x - x;
+      const dy = player.y - y;
+      const playerDist = Math.sqrt(dx * dx + dy * dy);
+      
+      // Check for obstacle collisions
+      let collidesWithObstacle = false;
+      for (const obstacle of obstacles) {
+        if (circleRectCollides(x, y, 12, obstacle)) {
+          collidesWithObstacle = true;
+          break;
+        }
+      }
+      
+      if (playerDist > 160 && !collidesWithObstacle) {
+        validPosition = true;
+      }
+      
+      attempts++;
+    }
+    
+    if (!validPosition) {
+      // Fallback to a position that might be less ideal
+      x = canvasWidth / 2 + (Math.random() - 0.5) * (canvasWidth - 200);
+      y = canvasHeight / 2 + (Math.random() - 0.5) * (canvasHeight - 200);
     }
     
     setEnemies(prev => [...prev, {
@@ -365,7 +418,8 @@ export default function ArcheroGame() {
       y,
       vx: 0,
       vy: 0,
-      radius: 12
+      radius: 12,
+      spawnInvulUntil: time + 300 // 0.3 second invulnerability
     }]);
     
     setLastEnemySpawn(time);
@@ -414,6 +468,10 @@ export default function ArcheroGame() {
         x = 50 + Math.random() * (canvasWidth - 100);
         y = 50 + Math.random() * (canvasHeight - 100);
         
+        const diam = player.radius * 2;
+        const w = diam;
+        const h = diam * 2; // 2x length rectangles
+        
         // Check distance from player
         const dx = player.x - x;
         const dy = player.y - y;
@@ -422,10 +480,9 @@ export default function ArcheroGame() {
         // Check overlap with existing obstacles
         let overlapsObstacle = false;
         for (const obstacle of [...obstacles, ...newObstacles]) {
-          const ox = obstacle.x - x;
-          const oy = obstacle.y - y;
-          const dist = Math.sqrt(ox * ox + oy * oy);
-          if (dist < player.radius + obstacle.radius + 6) {
+          // AABB intersection test
+          if (Math.abs(x - obstacle.x) < (w + obstacle.width) / 2 && 
+              Math.abs(y - obstacle.y) < (h + obstacle.height) / 2) {
             overlapsObstacle = true;
             break;
           }
@@ -439,10 +496,12 @@ export default function ArcheroGame() {
       }
       
       if (validPosition) {
+        const diam = player.radius * 2;
         newObstacles.push({
           x,
           y,
-          radius: player.radius
+          width: diam,
+          height: diam * 2 // 2x length rectangles
         });
       }
     }
@@ -460,6 +519,9 @@ export default function ArcheroGame() {
       if (!lastTime) lastTime = timestamp;
       const deltaTime = timestamp - lastTime;
       lastTime = timestamp;
+      
+      // Update current time reference for rendering
+      nowRef.current = timestamp;
       
       if (timestamp - lastEnemySpawn >= enemySpawnRate) {
         spawnEnemy(timestamp);
@@ -483,9 +545,11 @@ export default function ArcheroGame() {
           newY = prev.y; // Cancel Y movement
         }
         
-        // Boundary checks
-        newX = Math.max(prev.radius, Math.min(canvasWidth - prev.radius, newX));
-        newY = Math.max(prev.radius, Math.min(canvasHeight - prev.radius, newY));
+        // Wall collisions
+        if (newX < WALL_THICKNESS + prev.radius) newX = WALL_THICKNESS + prev.radius;
+        if (newX > canvasWidth - WALL_THICKNESS - prev.radius) newX = canvasWidth - WALL_THICKNESS - prev.radius;
+        if (newY < WALL_THICKNESS + prev.radius) newY = WALL_THICKNESS + prev.radius;
+        if (newY > canvasHeight - prev.radius) newY = canvasHeight - prev.radius;
         
         return {
           ...prev,
@@ -494,23 +558,50 @@ export default function ArcheroGame() {
         };
       });
       
-      setProjectiles(prev => 
-        prev
-          .filter(p => timestamp - p.createdAt < projectileLifetime)
-          .map(p => {
-            let nx = p.x + p.vx;
-            let ny = p.y + p.vy;
-            let nvx = p.vx;
-            let nvy = p.vy;
-            if (p.canRicochet) {
-              if (nx <= p.radius || nx >= canvasWidth - p.radius) nvx = -nvx;
-              if (ny <= p.radius || ny >= canvasHeight - p.radius) nvy = -nvy;
-              nx = p.x + nvx;
-              ny = p.y + nvy;
+      // Update projectiles with obstacle collisions
+      setProjectiles(prev => {
+        const next: Projectile[] = [];
+        for (const p of prev) {
+          if (timestamp - p.createdAt >= projectileLifetime) continue;
+          
+          let vx = p.vx, vy = p.vy, x = p.x, y = p.y;
+          
+          // Border ricochet (existing logic)
+          if (p.canRicochet) {
+            if (x <= p.radius + WALL_THICKNESS || x >= canvasWidth - p.radius - WALL_THICKNESS) vx = -vx;
+            if (y <= p.radius + WALL_THICKNESS || y >= canvasHeight - p.radius) vy = -vy;
+          } else {
+            // Destroy projectile if it hits a wall
+            if (x <= p.radius + WALL_THICKNESS || x >= canvasWidth - p.radius - WALL_THICKNESS ||
+                y <= p.radius + WALL_THICKNESS || y >= canvasHeight - p.radius) {
+              continue;
             }
-            return { ...p, x: nx, y: ny, vx: nvx, vy: nvy };
-          })
-      );
+          }
+          
+          let nx = x + vx;
+          let ny = y + vy;
+          
+          // Test obstacles
+          let hitAxis: 'x'|'y' | null = null;
+          for (const ob of obstacles) {
+            if (circleRectCollides(nx, ny, p.radius, ob)) {
+              hitAxis = circleRectCollisionAxis(nx, ny, p.radius, ob);
+              if (p.canRicochet) {
+                if (hitAxis === 'x') vx = -vx; else vy = -vy;
+                nx = x + vx; ny = y + vy;
+              } else {
+                // destroy projectile
+                hitAxis = 'x'; // non-null
+              }
+              break;
+            }
+          }
+          
+          if (!p.canRicochet && hitAxis) continue;
+          next.push({ ...p, x: nx, y: ny, vx, vy });
+        }
+        return next;
+      });
       
       setEnemies(prev => {
         return prev.map(enemy => {
@@ -539,6 +630,12 @@ export default function ArcheroGame() {
             newY = enemy.y; // Cancel Y movement
           }
           
+          // Wall collisions
+          if (newX < WALL_THICKNESS + enemy.radius) newX = WALL_THICKNESS + enemy.radius;
+          if (newX > canvasWidth - WALL_THICKNESS - enemy.radius) newX = canvasWidth - WALL_THICKNESS - enemy.radius;
+          if (newY < WALL_THICKNESS + enemy.radius) newY = WALL_THICKNESS + enemy.radius;
+          if (newY > canvasHeight - enemy.radius) newY = canvasHeight - enemy.radius;
+          
           return {
             ...enemy,
             x: newX,
@@ -562,6 +659,9 @@ export default function ArcheroGame() {
       let projectilesChanged = false;
       
       for (const enemy of enemies) {
+        // Skip invulnerable enemies
+        if (timestamp < enemy.spawnInvulUntil) continue;
+        
         const dx = player.x - enemy.x;
         const dy = player.y - enemy.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -696,6 +796,43 @@ export default function ArcheroGame() {
       }
       groundPatternRef.current = ctx.createPattern(pCan, 'repeat');
     }
+    
+    /* ---------- build stone wall pattern once ---------- */
+    if (!stonePatternRef.current) {
+      const sCan = document.createElement('canvas');
+      sCan.width = 32;
+      sCan.height = 32;
+      const sCtx = sCan.getContext('2d')!;
+      
+      // Base color
+      sCtx.fillStyle = '#777';
+      sCtx.fillRect(0, 0, 32, 32);
+      
+      // Add stone texture
+      for (let i = 0; i < 20; i++) {
+        const x = Math.random() * 32;
+        const y = Math.random() * 32;
+        const size = 2 + Math.random() * 4;
+        const shade = 70 + Math.floor(Math.random() * 40);
+        sCtx.fillStyle = `rgb(${shade},${shade},${shade})`;
+        sCtx.beginPath();
+        sCtx.arc(x, y, size, 0, Math.PI * 2);
+        sCtx.fill();
+      }
+      
+      // Add cracks/lines
+      sCtx.strokeStyle = '#555';
+      sCtx.lineWidth = 0.5;
+      for (let i = 0; i < 3; i++) {
+        sCtx.beginPath();
+        sCtx.moveTo(Math.random() * 32, Math.random() * 32);
+        sCtx.lineTo(Math.random() * 32, Math.random() * 32);
+        sCtx.stroke();
+      }
+      
+      stonePatternRef.current = ctx.createPattern(sCan, 'repeat');
+    }
+    
     ctx.clearRect(0, 0, canvasWidth * dprRef.current, canvasHeight * dprRef.current);
     
     const topY = canvasHeight * 0.2;
@@ -755,6 +892,35 @@ export default function ArcheroGame() {
     ctx.fillRect(0, topY, canvasWidth, bottomY - topY);
     ctx.globalAlpha = 1;
     ctx.restore();
+    
+    /* ---------- draw stone walls ---------- */
+    ctx.save();
+    ctx.fillStyle = stonePatternRef.current || '#777';
+    
+    // Left wall
+    ctx.fillRect(0, 0, WALL_THICKNESS, canvasHeight);
+    
+    // Right wall
+    ctx.fillRect(canvasWidth - WALL_THICKNESS, 0, WALL_THICKNESS, canvasHeight);
+    
+    // Top wall
+    ctx.fillRect(0, 0, canvasWidth, WALL_THICKNESS);
+    
+    // Add subtle inner shadow for depth
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 2;
+    
+    // Inner edges
+    ctx.beginPath();
+    ctx.moveTo(WALL_THICKNESS, WALL_THICKNESS);
+    ctx.lineTo(WALL_THICKNESS, canvasHeight);
+    ctx.moveTo(canvasWidth - WALL_THICKNESS, WALL_THICKNESS);
+    ctx.lineTo(canvasWidth - WALL_THICKNESS, canvasHeight);
+    ctx.moveTo(WALL_THICKNESS, WALL_THICKNESS);
+    ctx.lineTo(canvasWidth - WALL_THICKNESS, WALL_THICKNESS);
+    ctx.stroke();
+    
+    ctx.restore();
 
     /* helper to draw soft shadow */
     const drawShadow = (sx: number, sy: number, rx: number, scale = 1) => {
@@ -774,13 +940,16 @@ export default function ArcheroGame() {
       const proj = project(obstacle.x, obstacle.y);
       const sx = proj.sx;
       const sy = proj.sy;
-      const size = obstacle.radius * 2 * proj.scale * VISUAL_SCALE;
-      drawShadow(sx, sy, size * 0.45);
+      const sizeW = obstacle.width * proj.scale * VISUAL_SCALE;
+      const sizeH = obstacle.height * proj.scale * VISUAL_SCALE;
       
-      // Draw rock-like obstacle
+      // Draw shadow under the obstacle
+      drawShadow(sx, sy, Math.max(sizeW, sizeH) / 2);
+      
+      // Draw rock-like rectangular obstacle
       ctx.fillStyle = '#888';
       ctx.beginPath();
-      ctx.arc(sx, sy, size * 0.5, 0, Math.PI * 2);
+      ctx.rect(sx - sizeW/2, sy - sizeH/2, sizeW, sizeH);
       ctx.fill();
       
       ctx.strokeStyle = '#555';
@@ -790,7 +959,13 @@ export default function ArcheroGame() {
       // Add some texture to the rock
       ctx.fillStyle = '#777';
       ctx.beginPath();
-      ctx.arc(sx - size * 0.15, sy - size * 0.1, size * 0.2, 0, Math.PI * 2);
+      ctx.arc(sx - sizeW * 0.15, sy - sizeH * 0.1, sizeW * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Add a second texture spot
+      ctx.fillStyle = '#666';
+      ctx.beginPath();
+      ctx.arc(sx + sizeW * 0.1, sy + sizeH * 0.15, sizeW * 0.15, 0, Math.PI * 2);
       ctx.fill();
     }
     
@@ -827,21 +1002,35 @@ export default function ArcheroGame() {
       const proj = project(enemy.x, enemy.y);
       const sx = proj.sx;
       const sy = proj.sy;
-      const size = enemy.radius * 2 * 1.6 * proj.scale * VISUAL_SCALE;
-      drawShadow(sx, sy, enemy.radius * proj.scale * VISUAL_SCALE);
+      
+      // Apply spawn animation if enemy is invulnerable
+      const isSpawning = nowRef.current < enemy.spawnInvulUntil;
+      const spawnProgress = isSpawning ? 
+        1 - (enemy.spawnInvulUntil - nowRef.current) / 300 : 1;
+      const scaleFactor = 0.5 + 0.5 * Math.max(0, Math.min(1, spawnProgress));
+      
+      const size = enemy.radius * 2 * 1.6 * proj.scale * VISUAL_SCALE * scaleFactor;
+      
+      if (!isSpawning) {
+        drawShadow(sx, sy, enemy.radius * proj.scale * VISUAL_SCALE);
+      }
+      
+      if (isSpawning) {
+        ctx.globalAlpha = 0.6;
+      }
       
       if (enemyImg) {
         ctx.drawImage(enemyImg, sx - size / 2, sy - size / 2, size, size);
       } else {
         ctx.fillStyle = '#2ECC71';
         ctx.beginPath();
-        ctx.arc(sx, sy, enemy.radius * proj.scale * VISUAL_SCALE, 0, Math.PI * 2);
+        ctx.arc(sx, sy, enemy.radius * proj.scale * VISUAL_SCALE * scaleFactor, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#1E9250';
         ctx.lineWidth = 2;
         ctx.stroke();
         
-        const eyeR = enemy.radius * 0.25 * proj.scale * VISUAL_SCALE;
+        const eyeR = enemy.radius * 0.25 * proj.scale * VISUAL_SCALE * scaleFactor;
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.arc(sx - eyeR * 1.5, sy - eyeR, eyeR, 0, Math.PI * 2);
@@ -858,8 +1047,12 @@ export default function ArcheroGame() {
         ctx.strokeStyle = '#1E9250';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(sx, sy + eyeR * 1.5, enemy.radius * 0.4 * proj.scale * VISUAL_SCALE, 0.1 * Math.PI, 0.9 * Math.PI);
+        ctx.arc(sx, sy + eyeR * 1.5, enemy.radius * 0.4 * proj.scale * VISUAL_SCALE * scaleFactor, 0.1 * Math.PI, 0.9 * Math.PI);
         ctx.stroke();
+      }
+      
+      if (isSpawning) {
+        ctx.globalAlpha = 1;
       }
     }
     
@@ -962,6 +1155,15 @@ export default function ArcheroGame() {
       ctx.stroke();
     }
     
+    // Draw yellow highlight when player is idle (firing)
+    if (player.vx === 0 && player.vy === 0 && running && !gameOver) {
+      ctx.strokeStyle = 'rgba(255,230,0,0.9)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r * 1.05, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    
     const bowRadius = r * 1.2;
     const bowAngle = Math.atan2(player.aimY, player.aimX);
     
@@ -1003,7 +1205,7 @@ export default function ArcheroGame() {
       ctx.fillText(`Final Score: ${score} | Kills: ${kills} | SLP: ${slpCount}`, canvasWidth / 2, canvasHeight / 2 + 20);
     }
     
-  }, [player, projectiles, enemies, drops, score, kills, slpCount, gameOver, playerImg, enemyImg, slpImg, obstacles, mousePos]);
+  }, [player, projectiles, enemies, drops, score, kills, slpCount, gameOver, playerImg, enemyImg, slpImg, obstacles, mousePos, running]);
   
   return (
     <div className="snake-game">
