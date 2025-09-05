@@ -41,6 +41,20 @@ export default function ArcheroGame() {
   const [kills, setKills] = useState(0);
   const [slpCount, setSlpCount] = useState(0);
 
+  /* Load SLP from localStorage on mount */
+  useEffect(() => {
+    const saved = localStorage.getItem('slpCount');
+    if (saved) {
+      const n = parseInt(saved, 10);
+      if (!isNaN(n)) setSlpCount(n);
+    }
+  }, []);
+
+  /* Save SLP to localStorage when it changes */
+  useEffect(() => {
+    localStorage.setItem('slpCount', String(slpCount));
+  }, [slpCount]);
+
   /* roguelike stats & perk ui */
   const [stats, setStats] = useState({
     playerSpeed: 2.6,
@@ -106,7 +120,7 @@ export default function ArcheroGame() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    /* perf: clamp DPR so 4-5K monitors don’t explode the GPU */
+    /* perf: clamp DPR so 4-5K monitors don't explode the GPU */
     const dpr = Math.min(1.5, window.devicePixelRatio || 1);
     dprRef.current = dpr;
     canvas.width = canvasWidth * dpr;
@@ -241,7 +255,7 @@ export default function ArcheroGame() {
     setGameOver(false);
     setScore(0);
     setKills(0);
-    setSlpCount(0);
+    // Remove setSlpCount(0) to keep SLP persistent across runs
     setPlayer({
       x: canvasWidth / 2,
       y: canvasHeight / 2,
@@ -446,6 +460,12 @@ export default function ArcheroGame() {
       let newDrops = [...drops];
       let newEnemies = [...enemies];
       let newProjectiles = [...projectiles];
+      let newSlp = slpCount;
+      
+      // Flags to track changes
+      let dropsChanged = false;
+      let enemiesChanged = false;
+      let projectilesChanged = false;
       
       for (const enemy of enemies) {
         const dx = player.x - enemy.x;
@@ -466,10 +486,13 @@ export default function ArcheroGame() {
           if (pDistance < projectile.radius + enemy.radius) {
             newKills++;
             newEnemies = newEnemies.filter(e => e !== enemy);
+            enemiesChanged = true;
+            
             if (projectile.piercesLeft > 0) {
               projectile.piercesLeft -= 1;
             } else {
               newProjectiles = newProjectiles.filter((_, index) => index !== i);
+              projectilesChanged = true;
             }
             
             if (Math.random() < dropChance) {
@@ -478,6 +501,7 @@ export default function ArcheroGame() {
                 y: enemy.y,
                 radius: 12
               });
+              dropsChanged = true;
             }
             
             break;
@@ -485,8 +509,6 @@ export default function ArcheroGame() {
         }
       }
       
-      let newScore = score;
-      let newSlp = slpCount;
       const remainingDrops = [];
       
       for (const drop of newDrops) {
@@ -496,6 +518,7 @@ export default function ArcheroGame() {
         
         if (distance < player.radius + drop.radius) {
           newSlp++;
+          dropsChanged = true;
         } else {
           remainingDrops.push(drop);
         }
@@ -503,11 +526,12 @@ export default function ArcheroGame() {
       
       if (newGameOver !== gameOver) setGameOver(newGameOver);
       if (newKills !== kills) setKills(newKills);
-      if (newScore !== score) setScore(newScore);
       if (newSlp !== slpCount) setSlpCount(newSlp);
-      if (newDrops.length !== remainingDrops.length) setDrops(remainingDrops);
-      if (newEnemies.length !== enemies.length) setEnemies(newEnemies);
-      if (newProjectiles.length !== projectiles.length) setProjectiles(newProjectiles);
+      
+      // Use flags to determine when to update state
+      if (dropsChanged) setDrops(remainingDrops);
+      if (enemiesChanged) setEnemies(newEnemies);
+      if (projectilesChanged) setProjectiles(newProjectiles);
 
       /* ----- roguelike milestone ----- */
       if (newKills >= nextMilestone && !perkOpen) {
@@ -670,8 +694,9 @@ export default function ArcheroGame() {
         ctx.arc(sx, sy, size * 0.5, 0, Math.PI * 2);
         ctx.fill();
         
+        // Thicker white stroke for better visibility when image is missing
         ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.stroke();
       }
     }
