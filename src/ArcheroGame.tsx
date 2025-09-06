@@ -106,10 +106,10 @@ export default function ArcheroGame() {
   const VISUAL_SCALE = 2;
 
   /* -------- trapezoid arena geometry -------- */
-  const TOP_Y = canvasHeight * 0.1;
+  const TOP_Y = canvasHeight * 0.06;
   const BOTTOM_Y = canvasHeight * 0.98;
-  const TOP_HALF_W = canvasWidth * 0.22;
-  const BOT_HALF_W = canvasWidth * 0.35;
+  const TOP_HALF_W = canvasWidth * 0.16;
+  const BOT_HALF_W = canvasWidth * 0.28;
   const cxArena = canvasWidth / 2;
   const STONE_WALL_WIDTH = 18;
   const halfWAt = (y: number) =>
@@ -149,13 +149,12 @@ export default function ArcheroGame() {
   }, []);
 
   function project(x: number, y: number) {
-    const topY = canvasHeight * 0.2;
-    const bottomY = canvasHeight * 0.95;
     const t = Math.max(0, Math.min(1, y / canvasHeight));
-    const widthScale = 0.6 + (1 - 0.6) * t;
-    const sx = canvasWidth / 2 + (x - canvasWidth / 2) * widthScale;
-    const sy = topY + (bottomY - topY) * t;
-    return { sx, sy, scale: widthScale };
+    const halfW = halfWAt(y);
+    const sx = cxArena + (x - cxArena) * (halfW / BOT_HALF_W);
+    const sy = TOP_Y + (BOTTOM_Y - TOP_Y) * t;
+    const scale = halfW / BOT_HALF_W;
+    return { sx, sy, scale };
   }
 
   useEffect(() => {
@@ -394,8 +393,9 @@ export default function ArcheroGame() {
     
     while (!validPosition && attempts < 20) {
       // Spawn within playable area, away from walls
-      x = WALL_THICKNESS + 40 + Math.random() * (canvasWidth - 2 * (WALL_THICKNESS + 40));
-      y = WALL_THICKNESS + 40 + Math.random() * (canvasHeight - 2 * (WALL_THICKNESS + 40));
+      y = 40 + Math.random() * (canvasHeight - 80);
+      const hw = halfWAt(y) - 40;
+      x = cxArena - hw + Math.random() * (hw * 2);
       
       // Check distance from player
       const dx = player.x - x;
@@ -476,12 +476,11 @@ export default function ArcheroGame() {
       
       // Try to find a valid position
       while (!validPosition && attempts < 20) {
-        x = 50 + Math.random() * (canvasWidth - 100);
         y = 50 + Math.random() * (canvasHeight - 100);
-        
         const diam = player.radius * 2;
-        const w = diam;
-        const h = diam * 2; // 2x length rectangles
+        const margin = diam/2 + 8;
+        const hw = halfWAt(y) - margin;
+        x = cxArena - hw + Math.random() * (hw * 2);
         
         // Check distance from player
         const dx = player.x - x;
@@ -492,8 +491,8 @@ export default function ArcheroGame() {
         let overlapsObstacle = false;
         for (const obstacle of [...obstacles, ...newObstacles]) {
           // AABB intersection test
-          if (Math.abs(x - obstacle.x) < (w + obstacle.width) / 2 && 
-              Math.abs(y - obstacle.y) < (h + obstacle.height) / 2) {
+          if (Math.abs(x - obstacle.x) < (diam + obstacle.width) / 2 && 
+              Math.abs(y - obstacle.y) < (diam*2 + obstacle.height) / 2) {
             overlapsObstacle = true;
             break;
           }
@@ -556,11 +555,12 @@ export default function ArcheroGame() {
           newY = prev.y; // Cancel Y movement
         }
         
-        // Wall collisions
-        if (newX < WALL_THICKNESS + prev.radius) newX = WALL_THICKNESS + prev.radius;
-        if (newX > canvasWidth - WALL_THICKNESS - prev.radius) newX = canvasWidth - WALL_THICKNESS - prev.radius;
-        if (newY < WALL_THICKNESS + prev.radius) newY = WALL_THICKNESS + prev.radius;
-        if (newY > canvasHeight - prev.radius) newY = canvasHeight - prev.radius;
+        // Trapezoid boundary clamp
+        const hw = halfWAt(newY) - prev.radius;
+        const minX = cxArena - hw;
+        const maxX = cxArena + hw;
+        newX = Math.max(minX, Math.min(maxX, newX));
+        newY = Math.max(prev.radius, Math.min(canvasHeight - prev.radius, newY));
         
         return {
           ...prev,
@@ -577,20 +577,17 @@ export default function ArcheroGame() {
           
           let vx = p.vx, vy = p.vy, x = p.x, y = p.y;
           
-          // Border ricochet (existing logic)
-          if (p.canRicochet) {
-            if (x <= p.radius + WALL_THICKNESS || x >= canvasWidth - p.radius - WALL_THICKNESS) vx = -vx;
-            if (y <= p.radius + WALL_THICKNESS || y >= canvasHeight - p.radius) vy = -vy;
-          } else {
-            // Destroy projectile if it hits a wall
-            if (x <= p.radius + WALL_THICKNESS || x >= canvasWidth - p.radius - WALL_THICKNESS ||
-                y <= p.radius + WALL_THICKNESS || y >= canvasHeight - p.radius) {
-              continue;
-            }
-          }
-          
           let nx = x + vx;
           let ny = y + vy;
+          
+          // Trapezoid boundary check
+          const hwN = halfWAt(ny) - p.radius;
+          if (nx < cxArena - hwN || nx > cxArena + hwN) {
+            if (p.canRicochet) { vx = -vx; nx = x + vx; } else { continue; }
+          }
+          if (ny < p.radius || ny > canvasHeight - p.radius) {
+            if (p.canRicochet) { vy = -vy; ny = y + vy; } else { continue; }
+          }
           
           // Test obstacles
           let hitAxis: 'x'|'y' | null = null;
@@ -641,11 +638,12 @@ export default function ArcheroGame() {
             newY = enemy.y; // Cancel Y movement
           }
           
-          // Wall collisions
-          if (newX < WALL_THICKNESS + enemy.radius) newX = WALL_THICKNESS + enemy.radius;
-          if (newX > canvasWidth - WALL_THICKNESS - enemy.radius) newX = canvasWidth - WALL_THICKNESS - enemy.radius;
-          if (newY < WALL_THICKNESS + enemy.radius) newY = WALL_THICKNESS + enemy.radius;
-          if (newY > canvasHeight - enemy.radius) newY = canvasHeight - enemy.radius;
+          // Trapezoid boundary clamp
+          const hw = halfWAt(newY) - enemy.radius;
+          const minX = cxArena - hw;
+          const maxX = cxArena + hw;
+          newX = Math.max(minX, Math.min(maxX, newX));
+          newY = Math.max(enemy.radius, Math.min(canvasHeight - enemy.radius, newY));
           
           return {
             ...enemy,
@@ -846,22 +844,16 @@ export default function ArcheroGame() {
     
     ctx.clearRect(0, 0, canvasWidth * dprRef.current, canvasHeight * dprRef.current);
     
-    const topY = canvasHeight * 0.2;
-    const bottomY = canvasHeight * 0.95;
-    const topHalfW = (canvasWidth / 2) * 0.6;
-    const botHalfW = canvasWidth / 2;
-    const cx = canvasWidth / 2;
-
-    const groundGrad = ctx.createLinearGradient(0, topY, 0, bottomY);
+    const groundGrad = ctx.createLinearGradient(0, TOP_Y, 0, BOTTOM_Y);
     groundGrad.addColorStop(0, groundColors.top);
     groundGrad.addColorStop(1, groundColors.bottom);
     ctx.fillStyle = groundGrad;
 
     ctx.beginPath();
-    ctx.moveTo(cx - topHalfW, topY);
-    ctx.lineTo(cx + topHalfW, topY);
-    ctx.lineTo(cx + botHalfW, bottomY);
-    ctx.lineTo(cx - botHalfW, bottomY);
+    ctx.moveTo(cxArena - TOP_HALF_W, TOP_Y);
+    ctx.lineTo(cxArena + TOP_HALF_W, TOP_Y);
+    ctx.lineTo(cxArena + BOT_HALF_W, BOTTOM_Y);
+    ctx.lineTo(cxArena - BOT_HALF_W, BOTTOM_Y);
     ctx.closePath();
     ctx.fill();
 
@@ -871,66 +863,52 @@ export default function ArcheroGame() {
     const N = 12;
     for (let i = 0; i <= N; i++) {
       const t = i / N;
-      const xTop = cx - topHalfW + (topHalfW * 2) * t;
-      const xBot = cx - botHalfW + (botHalfW * 2) * t;
+      const xTop = cxArena - TOP_HALF_W + (TOP_HALF_W * 2) * t;
+      const xBot = cxArena - BOT_HALF_W + (BOT_HALF_W * 2) * t;
       ctx.beginPath();
-      ctx.moveTo(xTop, topY);
-      ctx.lineTo(xBot, bottomY);
+      ctx.moveTo(xTop, TOP_Y);
+      ctx.lineTo(xBot, BOTTOM_Y);
       ctx.stroke();
     }
     
     const M = 10;
     for (let j = 1; j < M; j++) {
-      const ty = topY + (bottomY - topY) * (j / M);
-      const halfW = topHalfW + (botHalfW - topHalfW) * (j / M);
+      const ty = TOP_Y + (BOTTOM_Y - TOP_Y) * (j / M);
+      const halfW = TOP_HALF_W + (BOT_HALF_W - TOP_HALF_W) * (j / M);
       ctx.beginPath();
-      ctx.moveTo(cx - halfW, ty);
-      ctx.lineTo(cx + halfW, ty);
+      ctx.moveTo(cxArena - halfW, ty);
+      ctx.lineTo(cxArena + halfW, ty);
       ctx.stroke();
     }
 
     /* ---------- textured overlay clipped to ground ---------- */
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(cx - topHalfW, topY);
-    ctx.lineTo(cx + topHalfW, topY);
-    ctx.lineTo(cx + botHalfW, bottomY);
-    ctx.lineTo(cx - botHalfW, bottomY);
+    ctx.moveTo(cxArena - TOP_HALF_W, TOP_Y);
+    ctx.lineTo(cxArena + TOP_HALF_W, TOP_Y);
+    ctx.lineTo(cxArena + BOT_HALF_W, BOTTOM_Y);
+    ctx.lineTo(cxArena - BOT_HALF_W, BOTTOM_Y);
     ctx.closePath();
     ctx.clip();
     ctx.globalAlpha = 0.18;
     if (groundPatternRef.current) ctx.fillStyle = groundPatternRef.current;
-    ctx.fillRect(0, topY, canvasWidth, bottomY - topY);
+    ctx.fillRect(0, TOP_Y, canvasWidth, BOTTOM_Y - TOP_Y);
     ctx.globalAlpha = 1;
     ctx.restore();
     
     /* ---------- draw stone walls ---------- */
     ctx.save();
-    ctx.fillStyle = stonePatternRef.current || '#777';
-    
-    // Left wall
-    ctx.fillRect(0, 0, WALL_THICKNESS, canvasHeight);
-    
-    // Right wall
-    ctx.fillRect(canvasWidth - WALL_THICKNESS, 0, WALL_THICKNESS, canvasHeight);
-    
-    // Top wall
-    ctx.fillRect(0, 0, canvasWidth, WALL_THICKNESS);
-    
-    // Add subtle inner shadow for depth
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-    ctx.lineWidth = 2;
-    
-    // Inner edges
+    ctx.lineWidth = STONE_WALL_WIDTH;
+    ctx.strokeStyle = (stonePatternRef.current as any) || '#777';
+    ctx.lineCap = 'butt';
     ctx.beginPath();
-    ctx.moveTo(WALL_THICKNESS, WALL_THICKNESS);
-    ctx.lineTo(WALL_THICKNESS, canvasHeight);
-    ctx.moveTo(canvasWidth - WALL_THICKNESS, WALL_THICKNESS);
-    ctx.lineTo(canvasWidth - WALL_THICKNESS, canvasHeight);
-    ctx.moveTo(WALL_THICKNESS, WALL_THICKNESS);
-    ctx.lineTo(canvasWidth - WALL_THICKNESS, WALL_THICKNESS);
+    ctx.moveTo(cxArena - TOP_HALF_W, TOP_Y);
+    ctx.lineTo(cxArena - BOT_HALF_W, BOTTOM_Y);
+    ctx.moveTo(cxArena + TOP_HALF_W, TOP_Y);
+    ctx.lineTo(cxArena + BOT_HALF_W, BOTTOM_Y);
+    ctx.moveTo(cxArena - TOP_HALF_W, TOP_Y);
+    ctx.lineTo(cxArena + TOP_HALF_W, TOP_Y);
     ctx.stroke();
-    
     ctx.restore();
 
     /* helper to draw soft shadow */
@@ -1171,7 +1149,8 @@ export default function ArcheroGame() {
       ctx.strokeStyle = 'rgba(255,230,0,0.9)';
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(sx, sy, r * 1.05, 0, Math.PI * 2);
+      const ringR = playerImg ? (pSize/2) * 1.03 : r * 1.05;
+      ctx.arc(sx, sy, ringR, 0, Math.PI * 2);
       ctx.stroke();
     }
     
