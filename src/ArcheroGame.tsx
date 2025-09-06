@@ -1282,22 +1282,27 @@ export default function ArcheroGame() {
                 }}
               >
                 {perkChoices.map((c) => (
-                  <button
+                  <div
                     key={c.id}
                     onClick={() => applyPerk(c.id)}
-                    className="perk-btn"
                     style={{
-                      padding: '10px 12px',
-                      borderRadius: 10,
-                      border: 'none',
+                      width: 140,
+                      height: 240,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      padding: 12,
+                      borderRadius: 12,
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.15)',
                       cursor: 'pointer',
-                      fontWeight: 700,
-                      background: 'var(--factory-orange)',
-                      color: '#fff'
+                      color: '#fff',
+                      fontWeight: 700
                     }}
                   >
                     {c.label}
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
