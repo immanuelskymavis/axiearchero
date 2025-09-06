@@ -104,6 +104,17 @@ export default function ArcheroGame() {
   const canvasWidth = 1280;
   const canvasHeight = 720;
   const VISUAL_SCALE = 2;
+
+  /* -------- trapezoid arena geometry -------- */
+  const TOP_Y = canvasHeight * 0.1;
+  const BOTTOM_Y = canvasHeight * 0.98;
+  const TOP_HALF_W = canvasWidth * 0.22;
+  const BOT_HALF_W = canvasWidth * 0.35;
+  const cxArena = canvasWidth / 2;
+  const STONE_WALL_WIDTH = 18;
+  const halfWAt = (y: number) =>
+    TOP_HALF_W + (BOT_HALF_W - TOP_HALF_W) * (y / canvasHeight);
+
   const dprRef = useRef(1);
   const MAX_ENEMIES = 35; /* --- perf: cap total enemies on screen --- */
   /* base values kept for reset calculations */
